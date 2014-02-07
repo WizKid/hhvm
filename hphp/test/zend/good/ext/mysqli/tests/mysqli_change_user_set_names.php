@@ -112,6 +112,7 @@
 		$defaults['charset_results'] = 'utf8';
 		$defaults['collation_connection'] = 'utf8_general_ci';
 	}
+	var_dump(PHP_VERSION, version_compare(PHP_VERSION, '5.9.9', '>') == 1, $new, $defaults);
 
 	if ($new != $defaults) {
 		printf("[012] Charsets/collations have not been reset to their defaults.\n");
