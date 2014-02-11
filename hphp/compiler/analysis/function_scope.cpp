@@ -16,10 +16,13 @@
 
 #include "hphp/compiler/analysis/function_scope.h"
 #include "hphp/compiler/analysis/analysis_result.h"
+#include "hphp/compiler/expression/array_pair_expression.h"
 #include "hphp/compiler/expression/constant_expression.h"
 #include "hphp/compiler/expression/modifier_expression.h"
 #include "hphp/compiler/expression/expression_list.h"
 #include "hphp/compiler/expression/function_call.h"
+#include "hphp/compiler/expression/scalar_expression.h"
+#include "hphp/compiler/expression/unary_op_expression.h"
 #include "hphp/compiler/analysis/code_error.h"
 #include "hphp/compiler/statement/statement_list.h"
 #include "hphp/compiler/analysis/file_scope.h"
@@ -83,6 +86,15 @@ FunctionScope::FunctionScope(AnalysisResultConstPtr ar, bool method,
   if (!m_method &&
       m_userAttributes.find("__Overridable") != m_userAttributes.end()) {
     setAllowOverride();
+  }
+
+  // Try to find if the function have __Native("VariadicByRef")
+  auto params = getUserAttributeParams("__native");
+  for (auto &param : params) {
+    if (param.compare("VariadicByRef") == 0) {
+      setVariableArgument(1);
+      break;
+    }
   }
 }
 
@@ -909,6 +921,29 @@ void FunctionScope::setOverriding(TypePtr returnType,
   for (unsigned int i = 0; i < m_paramTypes.size(); i++) {
     m_paramTypes[i] = Type::Variant;
   }
+}
+
+std::vector<std::string> FunctionScope::getUserAttributeParams(
+    const std::string& key) {
+  std::vector<std::string> ret;
+  auto native = m_userAttributes.find(key);
+  if (native != m_userAttributes.end()) {
+    auto args_list_exp = native->second;
+    assert(args_list_exp->getKidCount() < 2);
+    if (args_list_exp->getKidCount() == 1) {
+      auto args_list = args_list_exp->getNthKid(0);
+      if (args_list) {
+        for (int i = 0; i < args_list->getKidCount(); i++) {
+          auto kid = static_pointer_cast<ArrayPairExpression>(
+                      args_list->getNthKid(i));
+          auto value = static_pointer_cast<ScalarExpression>(kid->getValue());
+          ret.push_back(value->getString());
+        }
+      }
+    }
+  }
+
+  return ret;
 }
 
 std::string FunctionScope::getId() const {
